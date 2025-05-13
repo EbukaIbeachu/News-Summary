@@ -1,9 +1,6 @@
 streamlit
-pandas
-beautifulsoup4
-newspaper3k
 transformers
-torch
+bs4
 nltk
+pandas
 requests
-lxml
