@@ -1,6 +1,8 @@
 streamlit
-transformers
-bs4
-nltk
 pandas
 requests
+beautifulsoup4
+nltk
+transformers
+feedparser
+torch
