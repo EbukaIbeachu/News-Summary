@@ -1,7 +1,8 @@
 streamlit
-transformers
 newspaper3k
+lxml==4.9.3
 beautifulsoup4
+transformers
+nltk
 pandas
 requests
-nltk
