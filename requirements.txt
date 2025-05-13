@@ -1,8 +1,9 @@
 streamlit
-newspaper3k
-lxml==4.9.3
-beautifulsoup4
-transformers
-nltk
 pandas
+beautifulsoup4
+newspaper3k
+transformers
+torch
+nltk
 requests
+lxml
