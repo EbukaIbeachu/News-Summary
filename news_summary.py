@@ -95,7 +95,7 @@ SIMILARITY_THRESHOLD = 0.85
 # ------------------------------
 # Summarizer Setup
 # ------------------------------
-summarizer = pipeline("summarization", model="t5-small", tokenizer="t5-small")
+summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
 
 # ------------------------------
 # Helper Functions
