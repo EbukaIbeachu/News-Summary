@@ -7,7 +7,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from bs4 import BeautifulSoup
-from newspaper import Article, Config, utils
 from transformers import pipeline
 import nltk
 
@@ -15,7 +14,6 @@ import nltk
 # Environment Setup
 # ------------------------------
 nltk.download('punkt', quiet=True)
-utils.cache_disk.enabled = False  # Disable newspaper3k caching
 
 # Logging setup
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -88,18 +86,46 @@ NEWS_SITES = {
     'IEA News RSS': 'https://www.iea.org/rss/news'
 }
 
-
 DATA_PATH = "News.csv"
 SIMILARITY_THRESHOLD = 0.85
 
 # ------------------------------
 # Summarizer Setup
 # ------------------------------
-summarizer = pipeline("summarization", model="knkarthick/MEETING_SUMMARY")  # or another smaller model
+summarizer = pipeline("summarization", model="knkarthick/MEETING_SUMMARY")
 
 # ------------------------------
 # Helper Functions
 # ------------------------------
+
+def summarize_article(text):
+    try:
+        return summarizer(text, max_length=130, min_length=30, do_sample=False)[0]['summary_text']
+    except:
+        return "Summary failed."
+
+def extract_article_text(url):
+    try:
+        response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        paragraphs = soup.find_all('p')
+        text = ' '.join(p.get_text() for p in paragraphs if p.get_text())
+        return text.strip()
+    except Exception as e:
+        logging.warning(f"Failed to extract article from {url}: {e}")
+        return ""
+
+def extract_publish_date(url):
+    try:
+        response = requests.get(url, timeout=10)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        pub_date_tag = soup.find('meta', {'property': 'article:published_time'})
+        if pub_date_tag and pub_date_tag.get('content'):
+            return pub_date_tag.get('content')
+    except:
+        pass
+    return None
+
 def fetch_articles():
     articles = []
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -114,90 +140,17 @@ def fetch_articles():
                 if not title or not link:
                     continue
                 if any(keyword.lower() in title.lower() for keyword in KEYWORDS):
-                    try:
-                        article = Article(link)
-                        article.download()
-                        article.parse()
-                        article.nlp()
-                        summary = summarize_article(article.text)
-                        pub_date = extract_publish_date(link) or datetime.utcnow()
-                    except Exception:
-                        summary = "Summary not available."
-                        pub_date = datetime.utcnow()
-                    articles.append({
-                        'Title': title,
-                        'Link': link,
-                        'Source': source,
-                        'Published': pub_date.strftime('%Y-%m-%d %H:%M:%S'),
-                        'Summary': summary
-                    })
+                    text = extract_article_text(link)
+                    if text:
+                        summary = summarize_article(text)
+                        pub_date = extract_publish_date(link) or datetime.now().isoformat()
+                        articles.append({
+                            'source': source,
+                            'title': title,
+                            'link': link,
+                            'summary': summary,
+                            'published': pub_date
+                        })
         except Exception as e:
-            logging.warning(f"Error fetching from {source}: {e}")
+            logging.warning(f"Failed to fetch from {source}: {e}")
     return articles
-
-def summarize_article(text):
-    try:
-        return summarizer(text[:1024], max_length=120, min_length=30, do_sample=False)[0]['summary_text']
-    except Exception as e:
-        logging.error(f"Summarization failed: {e}")
-        return "Summary not available."
-
-def is_similar(title, existing_titles):
-    return any(
-        difflib.SequenceMatcher(None, title.lower(), existing.lower()).ratio() >= SIMILARITY_THRESHOLD
-        for existing in existing_titles
-    )
-
-def load_existing_titles():
-    if not os.path.exists(DATA_PATH):
-        return []
-    with open(DATA_PATH, mode='r', encoding='utf-8') as f:
-        return [row['Title'] for row in csv.DictReader(f)]
-
-def extract_publish_date(url):
-    try:
-        response = requests.get(url, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        meta = soup.find('meta', attrs={'property': 'article:published_time'})
-        if meta and meta.get('content'):
-            return datetime.fromisoformat(meta['content'].replace('Z', '+00:00'))
-    except Exception as e:
-        logging.warning(f"Could not extract publish date from {url}: {e}")
-    return None
-
-def save_articles_to_csv(articles):
-    fieldnames = ['Title', 'Link', 'Source', 'Published', 'Summary']
-    write_header = not os.path.exists(DATA_PATH)
-    with open(DATA_PATH, mode='a', encoding='utf-8', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        if write_header:
-            writer.writeheader()
-        for article in articles:
-            writer.writerow(article)
-
-# ------------------------------
-# Streamlit App Interface
-# ------------------------------
-st.title("📰 Global News Summary Dashboard")
-
-if st.button("Fetch Latest News"):
-    with st.spinner("Fetching and summarizing articles... Please wait."):
-        existing_titles = load_existing_titles()
-        new_articles = fetch_articles()
-        filtered_articles = [
-            a for a in new_articles if not is_similar(a['Title'], existing_titles)
-        ]
-
-        if filtered_articles:
-            save_articles_to_csv(filtered_articles)
-            df = pd.DataFrame(filtered_articles)
-            st.success(f"✅ Fetched and summarized {len(df)} articles.")
-
-            for _, row in df.iterrows():
-                st.markdown(f"### {row['Title']}")
-                st.markdown(f"**Source:** {row['Source']} | **Published:** {row['Published']}")
-                st.markdown(f"**Summary:** {row['Summary']}")
-                st.markdown(f"[Read more...]({row['Link']})", unsafe_allow_html=True)
-                st.markdown("---")
-        else:
-            st.warning("No new articles matched your keywords or all were duplicates.")
