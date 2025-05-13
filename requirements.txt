@@ -1,0 +1,7 @@
+streamlit
+transformers
+newspaper3k
+beautifulsoup4
+pandas
+requests
+nltk
