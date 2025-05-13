@@ -92,7 +92,7 @@ SIMILARITY_THRESHOLD = 0.85
 # ------------------------------
 # Summarizer Setup
 # ------------------------------
-summarizer = pipeline("summarization", model="knkarthick/MEETING_SUMMARY")
+summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
 
 # ------------------------------
 # Helper Functions
